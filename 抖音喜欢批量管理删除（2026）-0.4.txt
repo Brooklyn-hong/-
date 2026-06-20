@@ -1,0 +1,118 @@
+// ==UserScript==
+// @name         抖音喜欢批量管理删除（2026）
+// @namespace    http://tampermonkey.net/
+// @version      0.4
+// @description  使用批量管理 + 取消全选/取消喜欢/确认
+// @author       Brooklyn
+// @match        https://www.douyin.com/*
+// @grant        none
+// @run-at       document-end
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    let isRunning = false;
+    let totalDeleted = 0;
+
+    function createPanel() {
+        const panel = document.createElement('div');
+        panel.style.cssText = `
+            position: fixed; top: 20px; right: 20px; background: rgba(0,0,0,0.92);
+            color: white; padding: 15px; border-radius: 8px; z-index: 99999;
+            font-size: 14px; min-width: 240px; box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        `;
+
+        const title = document.createElement('div');
+        title.textContent = '抖音批量删除喜欢';
+        title.style.fontWeight = 'bold';
+        title.style.marginBottom = '12px';
+
+        const btn = document.createElement('button');
+        btn.textContent = ' 开始批量删除';
+        btn.style.cssText = `padding: 12px 20px; background: #fe2c55; color: white; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-size: 15px;`;
+
+        const status = document.createElement('div');
+        status.style.marginTop = '12px';
+        status.style.lineHeight = '1.5';
+
+        panel.append(title, btn, status);
+        document.body.appendChild(panel);
+
+        btn.addEventListener('click', async () => {
+            if (isRunning) {
+                isRunning = false;
+                btn.textContent = '已停止';
+                return;
+            }
+            isRunning = true;
+            btn.textContent = '⏹ 停止运行';
+            await runBatch(status, btn);
+        });
+    }
+
+    async function sleep(ms) {
+        return new Promise(r => setTimeout(r, ms));
+    }
+
+    async function runBatch(status, btn) {
+        while (isRunning) {
+            try {
+                status.textContent = '进入批量管理模式...';
+
+                // 点击批量管理（使用你之前提供的 class）
+                const batchBtn = document.querySelector('div.CpikadCM') ||
+                                 [...document.querySelectorAll('div')].find(d => d.textContent.includes('批量管理'));
+                if (batchBtn) batchBtn.click();
+                await sleep(1200);
+
+                // 处理全选（你提供的“取消全选”）
+                const selectAll = document.querySelector('span.semi-checkbox-addon') ||
+                                  [...document.querySelectorAll('span')].find(s =>
+                                      s.textContent.includes('全选') || s.textContent.includes('取消全选'));
+                if (selectAll) {
+                    selectAll.click();
+                    status.textContent = '✅ 已点击全选';
+                    await sleep(800);
+                }
+
+                // 点击“取消喜欢”
+                const cancelLike = document.querySelector('span.TLFN2T6H') ||
+                                   [...document.querySelectorAll('span')].find(s => s.textContent.includes('取消喜欢'));
+                if (cancelLike) {
+                    cancelLike.click();
+                    status.textContent = '已点击取消喜欢';
+                    await sleep(1000);
+                } else {
+                    status.textContent = '未找到“取消喜欢”按钮';
+                    await sleep(1500);
+                    continue;
+                }
+
+                // 点击确认弹窗
+                const confirmBtn = document.querySelector('button.semi-button-primary.xVAZ7ZG8') ||
+                                   [...document.querySelectorAll('button')].find(b =>
+                                       b.textContent.includes('确认取消') || b.textContent.includes('确认'));
+                if (confirmBtn) {
+                    confirmBtn.click();
+                    totalDeleted += 30; // 网页版一般一次30-50个
+                    status.textContent = `✅ 本批次完成！累计 ≈ ${totalDeleted} 个`;
+                    console.log(`已删除约 ${totalDeleted} 个`);
+                }
+
+                await sleep(1500);
+
+                // 滚动加载下一批
+                window.scrollBy(0, 1800);
+                await sleep(2000);
+
+            } catch (err) {
+                console.error(err);
+                await sleep(2000);
+            }
+        }
+    }
+
+    // 启动面板
+    setTimeout(createPanel, 1500);
+})();
